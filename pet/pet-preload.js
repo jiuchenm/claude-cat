@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld('petAPI', {
   showBubble: (text, duration) => ipcRenderer.send('show-bubble', text, duration),
   hideBubble: () => ipcRenderer.send('hide-bubble'),
   rightClick: () => ipcRenderer.send('pet-right-click'),
+  stateChanged: (state) => ipcRenderer.send('state-changed', state),
   onSetState: (cb) => ipcRenderer.on('set-state', (_, state) => cb(state)),
 })

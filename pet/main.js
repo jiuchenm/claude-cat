@@ -5,10 +5,11 @@ let petWin = null
 let bubbleWin = null
 let tray = null
 let dragOffset = null
+let petState = 'idle'  // track current pet state for context menus
 
-const PET_SIZE = 160
-const BUBBLE_W = 220
-const BUBBLE_H = 120
+const PET_SIZE = 324  // 4px extra to hide macOS transparent-window border artifact
+const BUBBLE_W = 260
+const BUBBLE_H = 100
 
 function createPetWindow() {
   const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize
@@ -24,6 +25,8 @@ function createPetWindow() {
     hasShadow: false,
     resizable: false,
     skipTaskbar: true,
+    roundedCorners: false,
+    titleBarStyle: 'customButtonsOnHover',
     webPreferences: {
       preload: path.join(__dirname, 'pet-preload.js'),
       contextIsolation: true,
@@ -46,8 +49,8 @@ function createBubbleWindow() {
   bubbleWin = new BrowserWindow({
     width: BUBBLE_W,
     height: BUBBLE_H,
-    x: petX - BUBBLE_W + 40,
-    y: petY - BUBBLE_H + 10,
+    x: petX + Math.round(PET_SIZE / 2) - Math.round(BUBBLE_W * 0.75),
+    y: petY - BUBBLE_H + 80,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -55,6 +58,8 @@ function createBubbleWindow() {
     resizable: false,
     skipTaskbar: true,
     focusable: false,
+    roundedCorners: false,
+    titleBarStyle: 'customButtonsOnHover',
     webPreferences: {
       preload: path.join(__dirname, 'bubble-preload.js'),
       contextIsolation: true,
@@ -72,7 +77,9 @@ function createBubbleWindow() {
 function updateBubblePosition() {
   if (!petWin || !bubbleWin) return
   const [petX, petY] = petWin.getPosition()
-  bubbleWin.setPosition(petX - BUBBLE_W + 40, petY - BUBBLE_H + 10)
+  const bx = petX + Math.round(PET_SIZE / 2) - Math.round(BUBBLE_W * 0.75)
+  const by = petY - BUBBLE_H + 80
+  bubbleWin.setPosition(bx, by)
 }
 
 function showBubble(text, duration = 4000) {
@@ -95,16 +102,25 @@ function createTray() {
   tray.setToolTip('Claude Pet')
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Wake Up', click: () => petWin?.webContents.send('set-state', 'idle') },
-    { label: 'Sleep', click: () => petWin?.webContents.send('set-state', 'sleep') },
-    { label: 'Do Task', click: () => petWin?.webContents.send('set-state', 'task') },
+    { label: '☀️ 叫醒', click: () => sendPetState('idle') },
+    { label: '😴 去睡觉', click: () => sendPetState('sleep') },
+    { label: '⚡ 去工作', click: () => sendPetState('task') },
     { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() },
+    { label: '👋 退出', click: () => app.quit() },
   ])
   tray.setContextMenu(contextMenu)
 }
 
 // --- IPC Handlers ---
+
+function sendPetState(state) {
+  petState = state
+  petWin?.webContents.send('set-state', state)
+}
+
+ipcMain.on('state-changed', (_, state) => {
+  petState = state
+})
 
 ipcMain.on('start-drag', (_, screenX, screenY) => {
   if (!petWin) return
@@ -140,14 +156,26 @@ ipcMain.on('hide-bubble', () => {
 
 ipcMain.on('pet-right-click', () => {
   if (!petWin) return
-  const menu = Menu.buildFromTemplate([
-    { label: '😸 Wake Up', click: () => petWin.webContents.send('set-state', 'idle') },
-    { label: '😴 Sleep', click: () => petWin.webContents.send('set-state', 'sleep') },
-    { label: '⚡ Do Task', click: () => petWin.webContents.send('set-state', 'task') },
+  const isSleeping = petState.startsWith('sleep')
+  const isWorking = petState.startsWith('task')
+
+  const items = []
+  if (isSleeping) {
+    items.push({ label: '☀️ 叫醒', click: () => sendPetState('idle') })
+  } else {
+    items.push({ label: '😴 去睡觉', click: () => sendPetState('sleep') })
+  }
+  if (!isWorking) {
+    items.push({ label: '⚡ 去工作', click: () => sendPetState('task') })
+  } else {
+    items.push({ label: '☕ 休息一下', click: () => sendPetState('idle') })
+  }
+  items.push(
     { type: 'separator' },
-    { label: '🐾 About Claude Pet', click: () => showBubble('Claude Pet v0.1 🐱', 3000) },
-    { label: '👋 Quit', click: () => app.quit() },
-  ])
+    { label: '🐾 关于', click: () => showBubble('Claude Cat v0.1 🐱', 3000) },
+    { label: '👋 退出', click: () => app.quit() },
+  )
+  const menu = Menu.buildFromTemplate(items)
   menu.popup({ window: petWin })
 })
 

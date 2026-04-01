@@ -5,23 +5,35 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
-    width: 160px; height: 160px;
+    width: 324px; height: 324px;
     overflow: hidden; background: transparent;
     user-select: none; -webkit-app-region: no-drag;
   }
   #pet {
-    width: 160px; height: 160px;
+    width: 320px; height: 320px;
+    margin: 2px;
     display: flex; align-items: center; justify-content: center;
     cursor: grab; position: relative;
   }
-  #pet:active { cursor: grabbing; }
+  /* Invisible hit area so clicks register even on transparent video pixels */
+  #hit-area {
+    position: absolute;
+    width: 240px; height: 240px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(255,255,255,0.01);
+    z-index: 0;
+  }
   #pet-video {
-    width: 140px; height: 140px;
+    z-index: 1;
+    width: 280px; height: 280px;
     object-fit: contain;
-    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.18));
+    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.18));
     transition: transform 0.15s ease;
     pointer-events: none;
   }
+  #pet:active { cursor: grabbing; }
   /* Squish on click */
   #pet.squish #pet-video {
     transform: scale(0.88, 1.08);
@@ -32,15 +44,15 @@
   }
   @keyframes bounce {
     0%   { transform: translateY(0); }
-    30%  { transform: translateY(-14px) scale(1.05, 0.92); }
-    50%  { transform: translateY(-6px); }
-    70%  { transform: translateY(-2px) scale(0.97, 1.04); }
+    30%  { transform: translateY(-28px) scale(1.05, 0.92); }
+    50%  { transform: translateY(-12px); }
+    70%  { transform: translateY(-4px) scale(0.97, 1.04); }
     100% { transform: translateY(0); }
   }
   /* Zzz indicator */
   #zzz {
-    position: absolute; top: 8px; right: 12px;
-    font-size: 18px; opacity: 0; pointer-events: none;
+    position: absolute; top: 50px; right: 70px;
+    font-size: 28px; opacity: 0; pointer-events: none;
     transition: opacity 0.5s;
   }
   #zzz.show {
@@ -49,21 +61,22 @@
   }
   @keyframes zzz-float {
     0%, 100% { transform: translateY(0) rotate(-5deg); opacity: 0.7; }
-    50%      { transform: translateY(-8px) rotate(5deg); opacity: 1; }
+    50%      { transform: translateY(-14px) rotate(5deg); opacity: 1; }
   }
   /* Sparkle on interaction */
   .sparkle {
-    position: absolute; pointer-events: none; font-size: 14px;
+    position: absolute; pointer-events: none; font-size: 22px;
     animation: sparkle-up 0.7s ease-out forwards;
   }
   @keyframes sparkle-up {
     0%   { opacity: 1; transform: translateY(0) scale(1); }
-    100% { opacity: 0; transform: translateY(-30px) scale(0.4); }
+    100% { opacity: 0; transform: translateY(-50px) scale(0.4); }
   }
 </style>
 </head>
 <body>
 <div id="pet">
+  <div id="hit-area"></div>
   <video id="pet-video" muted playsinline></video>
   <span id="zzz">💤</span>
 </div>
@@ -95,6 +108,7 @@ function playAnim(name) {
   if (!anim) return
 
   currentState = name
+  window.petAPI.stateChanged(name)
   video.src = anim.src
   video.loop = !!anim.loop
   video.play().catch(() => {})
@@ -195,6 +209,13 @@ function spawnSparkle(x, y) {
 petEl.addEventListener('click', (e) => {
   if (dragState?.moved) return
 
+  // Any click while sleeping → wake up first
+  if (currentState.startsWith('sleep')) {
+    setState('idle')
+    window.petAPI.showBubble('*yawn* ...I\'m up! 😺', 2000)
+    return  // don't process sparkle/bounce on wake-click
+  }
+
   // Spawn sparkle at click position
   spawnSparkle(e.offsetX - 7, e.offsetY - 7)
 
@@ -218,12 +239,6 @@ petEl.addEventListener('click', (e) => {
     ]
     window.petAPI.showBubble(msgs[Math.floor(Math.random() * msgs.length)], 2500)
     return
-  }
-
-  // Single click → wake up if sleeping
-  if (currentState.startsWith('sleep')) {
-    setState('idle')
-    window.petAPI.showBubble('*yawn* ...I\'m up! 😺', 2000)
   }
 })
 
