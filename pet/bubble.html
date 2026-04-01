@@ -51,21 +51,20 @@
   /* Tail pointing down toward the cat */
   .bubble-tail {
     position: absolute;
-    bottom: -6px; right: 30px;
-    width: 12px; height: 12px;
+    bottom: -8px; right: 30px;
+    width: 16px; height: 10px;
     overflow: hidden;
   }
   .bubble-tail::before {
     content: '';
     position: absolute;
-    top: 0; left: 0;
-    width: 10px; height: 10px;
+    left: 2px;
+    top: -6px;
+    width: 12px; height: 12px;
     background: #1a1a1e;
     border-right: 1px solid rgba(255, 255, 255, 0.12);
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     transform: rotate(45deg);
-    transform-origin: center center;
-    top: -5px;
   }
 </style>
 </head>
