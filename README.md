@@ -1,3 +1,5 @@
+<img width="1928" height="1072" alt="videoframe_8574" src="https://github.com/user-attachments/assets/80e518ec-cc93-42c8-8860-c679f14e4364" />
+
 # claude-cat
 
 Desktop pet companion for Claude Code — a transparent, always-on-top animated cat that lives on your macOS desktop.
