@@ -1,0 +1,22 @@
+{
+  "name": "petclaw",
+  "version": "0.0.14",
+  "description": "PetClaw - Desktop Pet + AI Chat Application",
+  "main": "app-main/main.js",
+  "dependencies": {
+    "bytenode": "^1.5.7",
+    "electron-updater": "^6.3.9",
+    "ws": "^8.19.0"
+  },
+  "author": {
+    "name": "PetClaw Team",
+    "email": "support@petclaw.app"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "electron-winstaller"
+    ]
+  }
+}

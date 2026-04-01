@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 160px; height: 160px;
+    overflow: hidden; background: transparent;
+    user-select: none; -webkit-app-region: no-drag;
+  }
+  #pet {
+    width: 160px; height: 160px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: grab; position: relative;
+  }
+  #pet:active { cursor: grabbing; }
+  #pet-video {
+    width: 140px; height: 140px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.18));
+    transition: transform 0.15s ease;
+    pointer-events: none;
+  }
+  /* Squish on click */
+  #pet.squish #pet-video {
+    transform: scale(0.88, 1.08);
+  }
+  /* Bounce when happy */
+  #pet.bounce #pet-video {
+    animation: bounce 0.4s ease;
+  }
+  @keyframes bounce {
+    0%   { transform: translateY(0); }
+    30%  { transform: translateY(-14px) scale(1.05, 0.92); }
+    50%  { transform: translateY(-6px); }
+    70%  { transform: translateY(-2px) scale(0.97, 1.04); }
+    100% { transform: translateY(0); }
+  }
+  /* Zzz indicator */
+  #zzz {
+    position: absolute; top: 8px; right: 12px;
+    font-size: 18px; opacity: 0; pointer-events: none;
+    transition: opacity 0.5s;
+  }
+  #zzz.show {
+    opacity: 1;
+    animation: zzz-float 2s ease-in-out infinite;
+  }
+  @keyframes zzz-float {
+    0%, 100% { transform: translateY(0) rotate(-5deg); opacity: 0.7; }
+    50%      { transform: translateY(-8px) rotate(5deg); opacity: 1; }
+  }
+  /* Sparkle on interaction */
+  .sparkle {
+    position: absolute; pointer-events: none; font-size: 14px;
+    animation: sparkle-up 0.7s ease-out forwards;
+  }
+  @keyframes sparkle-up {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-30px) scale(0.4); }
+  }
+</style>
+</head>
+<body>
+<div id="pet">
+  <video id="pet-video" muted playsinline></video>
+  <span id="zzz">💤</span>
+</div>
+
+<script>
+const video = document.getElementById('pet-video')
+const petEl = document.getElementById('pet')
+const zzzEl = document.getElementById('zzz')
+
+// --- Animation map: state → { src, loop } ---
+const ANIMS = {
+  'idle':         { src: 'assets/static.webm',      loop: true },
+  'begin':        { src: 'assets/begin.webm',        loop: false, next: 'idle' },
+  'sleep-start':  { src: 'assets/sleep-start.webm',  loop: false, next: 'sleep-loop' },
+  'sleep-loop':   { src: 'assets/sleep-loop.webm',   loop: true },
+  'sleep-leave':  { src: 'assets/sleep-leave.webm',  loop: false, next: 'idle' },
+  'task-start':   { src: 'assets/task-start.webm',   loop: false, next: 'task-loop' },
+  'task-loop':    { src: 'assets/task-loop.webm',     loop: true },
+  'task-leave':   { src: 'assets/task-leave.webm',    loop: false, next: 'idle' },
+  'listening':    { src: 'assets/listening.webm',     loop: true },
+}
+
+let currentState = 'begin'
+let idleTimer = null
+const IDLE_SLEEP_MS = 60000  // sleep after 60s idle
+
+function playAnim(name) {
+  const anim = ANIMS[name]
+  if (!anim) return
+
+  currentState = name
+  video.src = anim.src
+  video.loop = !!anim.loop
+  video.play().catch(() => {})
+
+  // Zzz indicator
+  zzzEl.classList.toggle('show', name === 'sleep-loop')
+
+  // Chain: when non-looping anim ends, go to next
+  if (!anim.loop && anim.next) {
+    video.onended = () => { video.onended = null; playAnim(anim.next) }
+  } else {
+    video.onended = null
+  }
+}
+
+// --- High-level state transitions ---
+function setState(target) {
+  resetIdleTimer()
+
+  if (target === 'idle') {
+    if (currentState.startsWith('sleep')) {
+      playAnim('sleep-leave')
+    } else if (currentState.startsWith('task')) {
+      playAnim('task-leave')
+    } else {
+      playAnim('idle')
+    }
+  } else if (target === 'sleep') {
+    if (!currentState.startsWith('sleep')) {
+      playAnim('sleep-start')
+    }
+  } else if (target === 'task') {
+    if (currentState.startsWith('sleep')) {
+      // Wake up first, then start task
+      playAnim('sleep-leave')
+      video.onended = () => { video.onended = null; playAnim('task-start') }
+    } else if (!currentState.startsWith('task')) {
+      playAnim('task-start')
+    }
+  } else if (target === 'listening') {
+    if (currentState.startsWith('sleep')) {
+      playAnim('sleep-leave')
+      video.onended = () => { video.onended = null; playAnim('listening') }
+    } else {
+      playAnim('listening')
+    }
+  }
+}
+
+// --- Idle timer → auto sleep ---
+function resetIdleTimer() {
+  clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    if (currentState === 'idle') setState('sleep')
+  }, IDLE_SLEEP_MS)
+}
+
+// --- Drag ---
+let dragState = null
+
+petEl.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return
+  const sx = window.screenX + e.clientX
+  const sy = window.screenY + e.clientY
+  dragState = { sx, sy, moved: false }
+  window.petAPI.startDrag(sx, sy)
+})
+
+window.addEventListener('mousemove', (e) => {
+  if (!dragState) return
+  const sx = window.screenX + e.clientX
+  const sy = window.screenY + e.clientY
+  if (!dragState.moved && (Math.abs(sx - dragState.sx) > 3 || Math.abs(sy - dragState.sy) > 3)) {
+    dragState.moved = true
+  }
+  if (dragState.moved) window.petAPI.dragMove(sx, sy)
+})
+
+window.addEventListener('mouseup', () => {
+  if (dragState?.moved) window.petAPI.stopDrag()
+  dragState = null
+})
+
+// --- Click interactions ---
+let clickTimes = []
+const EMOJIS = ['✨', '💖', '⭐', '🐾', '😺', '🎵']
+
+function spawnSparkle(x, y) {
+  const el = document.createElement('div')
+  el.className = 'sparkle'
+  el.textContent = EMOJIS[Math.floor(Math.random() * EMOJIS.length)]
+  el.style.left = x + 'px'
+  el.style.top = y + 'px'
+  petEl.appendChild(el)
+  el.addEventListener('animationend', () => el.remove())
+}
+
+petEl.addEventListener('click', (e) => {
+  if (dragState?.moved) return
+
+  // Spawn sparkle at click position
+  spawnSparkle(e.offsetX - 7, e.offsetY - 7)
+
+  // Squish animation
+  petEl.classList.add('squish')
+  setTimeout(() => petEl.classList.remove('squish'), 150)
+
+  const now = Date.now()
+  clickTimes.push(now)
+  clickTimes = clickTimes.filter(t => now - t < 600)
+
+  if (clickTimes.length >= 3) {
+    // Triple-click → happy bounce + bubble
+    clickTimes = []
+    petEl.classList.add('bounce')
+    setTimeout(() => petEl.classList.remove('bounce'), 500)
+
+    const msgs = [
+      'Meow! 😸', 'Purrrr~ 🐾', 'I love you! 💖',
+      '*happy cat noises* ✨', 'Nyaa~ 🎵',
+    ]
+    window.petAPI.showBubble(msgs[Math.floor(Math.random() * msgs.length)], 2500)
+    return
+  }
+
+  // Single click → wake up if sleeping
+  if (currentState.startsWith('sleep')) {
+    setState('idle')
+    window.petAPI.showBubble('*yawn* ...I\'m up! 😺', 2000)
+  }
+})
+
+// --- Right click ---
+petEl.addEventListener('contextmenu', (e) => {
+  e.preventDefault()
+  window.petAPI.rightClick()
+})
+
+// --- Listen for state changes from main process ---
+window.petAPI.onSetState((state) => setState(state))
+
+// --- Start ---
+playAnim('begin')
+resetIdleTimer()
+</script>
+</body>
+</html>

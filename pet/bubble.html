@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 220px; height: 120px;
+    overflow: hidden; background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  }
+
+  .bubble-root {
+    position: fixed;
+    bottom: 6px; right: 6px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+  }
+
+  .bubble {
+    display: inline-block;
+    max-width: 200px;
+    background: rgba(14, 14, 16, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px 14px 4px 14px;
+    padding: 10px 14px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+
+  .bubble.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .bubble-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.9);
+    word-break: break-word;
+  }
+
+  /* Tail pointing down-right toward the cat */
+  .bubble-tail {
+    position: absolute;
+    bottom: -6px; right: 16px;
+    width: 12px; height: 7px;
+    background: rgba(14, 14, 16, 0.92);
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+  }
+</style>
+</head>
+<body>
+<div class="bubble-root">
+  <div class="bubble" id="bubble">
+    <span class="bubble-text" id="bubble-text"></span>
+    <div class="bubble-tail"></div>
+  </div>
+</div>
+
+<script>
+const bubble = document.getElementById('bubble')
+const bubbleText = document.getElementById('bubble-text')
+
+window.bubbleAPI.onShowBubble((text) => {
+  bubbleText.textContent = text
+  bubble.classList.add('show')
+})
+
+// Hide is controlled by main process via window.hide()
+// But also support fade-out
+window.addEventListener('message', (e) => {
+  if (e.data === 'hide') bubble.classList.remove('show')
+})
+</script>
+</body>
+</html>
